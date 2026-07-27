@@ -23,10 +23,16 @@ def add_objects(scene: scenes, ax):
         color="grey"
     )
 
-    for i in range(vertices.shape[0]):
-        for j in range(vertices.shape[1]):
-            if i != j:
-                ax.plot(vertices[i,:], vertices[j,:], color="grey")
+    for i in range(len(vertices)):
+        for j in range(i + 1, len(vertices)):   # avoid duplicates/self-loops
+            ax.plot(
+                [vertices[i, 0], vertices[j, 0]],
+                [vertices[i, 1], vertices[j, 1]],
+                [vertices[i, 2], vertices[j, 2]],
+                color="grey",
+                linewidth=1
+            )
+
 
     return ax
 
@@ -88,96 +94,12 @@ def _extract_scene_positions(scene_obj_dict):
         return np.empty((0, 3)), []
     return np.vstack(positions), names
 
-def add_rays(paths: Paths, scene: scenes, ax, 
-             tx_idx=0, rx_idx=0,
-             tx_ant_idx=0, rx_ant_idx=0):
+def add_rays(simple_paths, ax):
 
-
-    # print(scene.receivers)
-
-    tx_positions, _ = _extract_scene_positions(scene.transmitters)
-    rx_positions_scene, _ = _extract_scene_positions(scene.receivers)
-    INVALID_OBJECT_ID_UINT32 = np.uint32(4294967295)
-
-    vertices = np.array(paths.vertices)
-    objects = np.array(paths.objects)
-    valid = np.array(paths.valid)
-
-    if vertices.ndim != 5:
-        raise ValueError(
-            f"Expected paths.vertices to have 5 dims [depth, rx, rx_ant, tx, tx_ant, path, 3], "
-            f"but got shape {vertices.shape}"
-        )
-    if objects.ndim != 4:
-        raise ValueError(
-            f"Expected paths.objects to have 4 dims [depth, rx, rx_ant, path], "
-            f"but got shape {objects.shape}"
-        )
-    if valid.ndim != 3:
-        raise ValueError(
-            f"Expected paths.valid to have 3 dims [rx, rx_ant, path], "
-            f"but got shape {valid.shape}"
-        )
-
-    depth_dim, num_rx, num_rx_ant, num_paths, xyz_dim = vertices.shape
-    if xyz_dim != 3:
-        raise ValueError(f"Last dimension of vertices must be 3, got {xyz_dim}")
-
-    rx_ant_idx = 0
-    if rx_ant_idx >= num_rx_ant:
-        raise ValueError(f"Requested rx_ant_idx=0 but num_rx_ant={num_rx_ant}")
-
-    
-    num_rx_plot = min(num_rx, len(rx_positions_scene))
-
-    global_path_idx = 1
-    for r_idx in range(num_rx_plot):
-        for p_idx in range(num_paths):
-            if not bool(valid[r_idx, rx_ant_idx, p_idx]):
-                continue
-
-            path_coords = [tx_positions[tx_idx]]
-
-            for d_idx in range(depth_dim):
-                oid = objects[d_idx, r_idx, rx_ant_idx, p_idx]
-                if np.issubdtype(type(oid), np.unsignedinteger):
-                    if oid == INVALID_OBJECT_ID_UINT32:
-                        continue
-                else:
-                    if int(oid) == -1:
-                        continue
-
-                vertex = np.array(vertices[d_idx, r_idx, rx_ant_idx, p_idx], dtype=float)
-                path_coords.append(vertex)
-
-            path_coords.append(rx_positions_scene[r_idx])
-            path_coords = np.array(path_coords, dtype=float)
-
-            cleaned = [path_coords[0]]
-            for q in path_coords[1:]:
-                if not np.allclose(q, cleaned[-1], atol=1e-9):
-                    cleaned.append(q)
-            path_coords = np.array(cleaned, dtype=float)
-
-            if len(path_coords) < 2:
-                continue
-
-            print(path_coords)
-
-            # ax.scatter(
-            #     path_coords[:, 0],
-            #     path_coords[:, 1],
-            #     path_coords[:, 2],
-            #     label=f"{global_path_idx}",
-            #     color = "red"
-            # )
-
-            ax.plot(                
-                path_coords[:, 0],
-                path_coords[:, 1],
-                path_coords[:, 2], 
-                color="red"
-                )
-
-            # TODO: Plot connection with lines
-            global_path_idx += 1
+    for path in simple_paths:
+        ax.plot(                
+            path[:, 0],
+            path[:, 1],
+            path[:, 2], 
+            color="red"
+            )

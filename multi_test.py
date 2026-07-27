@@ -20,7 +20,7 @@ from utils.path_utils import *
 
 
 if __name__ == "__main__":
-    scene = load_scene(sionna.rt.scene.simple_reflector)
+    scene = load_scene(sionna.rt.scene.simple_wedge)
 
     # Configure antenna array for all transmitters
     scene.tx_array = PlanarArray(num_rows=1,
@@ -40,42 +40,56 @@ if __name__ == "__main__":
 
     # Create transmitter
     tx = Transmitter(name="tx",
-                    position=[5, 0, 5])
+                    position=[30, -20, 0])
 
     # Add transmitter instance to scene
     scene.add(tx)
 
     # Create a receiver
-    rx = Receiver(name="rx",
-                position=[-5, 0, 5])
+    rx = Receiver(name="rx0",
+                position=[10, -30, 0])
 
     scene.add(rx)
 
+    rx1 = Receiver(name="rx1",
+            position=[30, -7, 0])
+
+    scene.add(rx1)
+
     p_solver  = PathSolver()
 
-    # Compute propagation paths
-    full_paths = p_solver(scene=scene,
-                    max_depth=5,
-                    los=True,
-                    specular_reflection=True,
-                    diffuse_reflection=False,
-                    refraction=True,
-                    synthetic_array=True,
-                    seed=41)
+    full_paths = p_solver(
+        scene,
+        max_depth=5,
+        los=True,
+        specular_reflection=True,
+        diffuse_reflection=False,
+        refraction=False,
+        diffraction=True,
+        edge_diffraction=True,
+        max_num_paths_per_src=100000,
+        seed=41,
+    )
+
+    
+    rx_paths = simplify_paths(full_paths, scene)
+
+    print(rx_paths)
 
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
+    for i, paths in enumerate(rx_paths):
 
 
-    paths = simplify_paths(full_paths, scene)
-
-
-    add_objects(scene, ax)
-    add_rxs(rx.position, ax)
-    add_txs(tx.position, ax)
-    add_rays(paths, ax)
-    set_axes_equal(ax)
-    ax.legend()
-
-    plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        add_objects(scene, ax)
+        add_rxs(rx.position, ax)
+        add_txs(tx.position, ax)
+        add_rays(paths, ax)
+        set_axes_equal(ax)
+        ax.legend()
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_zlabel("Z (m)")
+        ax.set_title (f" Rx {i} paths")
+        plt.show()
