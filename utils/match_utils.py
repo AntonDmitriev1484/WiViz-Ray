@@ -1,9 +1,4 @@
 
-# For every path
-# You need to remember its original receiver
-# Better yet just give each path its own unique index.
-# So first flatten the whole array
-# Paths have different dimensions -> different clustering.
 
 from k_means_constrained import KMeansConstrained
 import matplotlib.pyplot as plt
@@ -65,11 +60,13 @@ def match_paths_constrain_n(rx_paths, plot_pca=False):
         # Now run constrained kmeans on each dimension
 
         flattened = []
+        rx_labels = []
         for i in range(0,nrx): # For each receiver
             npaths = len(A[dim][i])
             for j in range(0, npaths):
                 flat_path = np.ravel(np.array(A[dim][i][j]))
                 flattened.append(flat_path)
+                rx_labels.append(i)
         flattened = np.array(flattened)
 
         n_clusters = math.ceil(k_estimate)
@@ -168,12 +165,15 @@ def match_paths_constrain_d(rx_paths, plot_pca=False):
         npaths_per_rx = [len(A[dim][i]) for i in range(nrx)]
         k_estimate = np.mean( np.array( npaths_per_rx ))
 
+
+        rx_labels = [] # For this path index in flattened, what is the corresponding rx index?
         flattened = []
         for i in range(0,nrx): # For each receiver
             npaths = len(A[dim][i])
             for j in range(0, npaths):
                 flat_path = np.ravel(np.array(A[dim][i][j]))
                 flattened.append(flat_path)
+                rx_labels.append(i)
         flattened = np.array(flattened)
 
 
@@ -184,9 +184,9 @@ def match_paths_constrain_d(rx_paths, plot_pca=False):
             min_samples=8
         )
 
-        labels = clustering.fit_predict(flattened)
+        cluster_labels = clustering.fit_predict(flattened) # For this path index in flattened, what cluster is it part of?
 
-        results.append( (flattened, labels) )
+        results.append( (flattened, cluster_labels, rx_labels) )
 
 
         if plot_pca:
@@ -198,11 +198,11 @@ def match_paths_constrain_d(rx_paths, plot_pca=False):
             # Plot
             plt.figure(figsize=(8, 8))
 
-            unique_clusters = np.unique(labels)
+            unique_clusters = np.unique(cluster_labels)
 
             for cluster in unique_clusters:
 
-                mask = labels == cluster
+                mask = cluster_labels == cluster
 
                 if cluster == -1:
                     # DBSCAN noise
