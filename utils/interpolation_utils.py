@@ -3,16 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def compute_trilinear_interpolation(match_results, scene):
+def compute_trilinear_interpolation(match_results, rx_positions):
 
     # ------------------------------------------------------------------
     # Build the interpolation matrix X from the receiver positions.
     # ------------------------------------------------------------------
-
-    rx_positions = np.array([
-        np.asarray(scene.receivers[f"rx{i}"].position, dtype=float)
-        for i in range(8)
-    ])
 
     X = np.column_stack([
         np.ones(8),

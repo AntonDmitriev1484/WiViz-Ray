@@ -75,7 +75,11 @@ if __name__ == "__main__":
     rx_paths = simplify_paths(full_paths, scene)
     # match_paths_constrain_n(rx_paths)
     results = match_paths_constrain_d(rx_paths) 
-    path_interpolations = compute_trilinear_interpolation(results, scene)
+    rx_positions = np.array([
+        np.asarray(scene.receivers[f"rx{i}"].position, dtype=float)
+        for i in range(8)
+    ])
+    path_interpolations = compute_trilinear_interpolation(results, rx_positions)
 
 
 
@@ -106,6 +110,7 @@ if __name__ == "__main__":
     # Add transmitter instance to scene
     scene.add(tx)
 
+    # All query points are within the original voxel we created
     query_points_offsets = cube_vertices([10,-35, 0], 0.5)
     query_points_offsets = np.vstack([
         query_points_offsets,
@@ -147,7 +152,7 @@ if __name__ == "__main__":
 
 
     error = []
-    
+
     for i, query_point in enumerate(query_points_offsets):
 
         x, y, z = query_point
@@ -175,7 +180,7 @@ if __name__ == "__main__":
         print(f"Query point {query_point}")
         error += eval_match(new_paths, gt_paths)
 
-    print(f" Total reflection point error = {np.mean(np.array(error))}m")
+    print(f" Average reflection point error = {np.mean(np.array(error))}m")
         
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection="3d")
