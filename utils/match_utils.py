@@ -150,7 +150,6 @@ def match_paths_constrain_n(rx_paths, plot_pca=False):
     print(f" Avg cluster center distances for each dimension {eps=}")
     return eps
 
-
 def match_paths_constrain_d(rx_paths, plot_pca=False):
 
     A = create_batches(rx_paths)
@@ -160,7 +159,6 @@ def match_paths_constrain_d(rx_paths, plot_pca=False):
     # Its claiming there are 0 paths of length 1
     # Oh I see, technically a LoS path is of length 2 as it includes the Tx and Rx vertex.
     for dim in range(2, len(A)):
-        print(f"{dim=}")
         nrx = len(A[dim])
         npaths_per_rx = [len(A[dim][i]) for i in range(nrx)]
         k_estimate = np.mean( np.array( npaths_per_rx ))
@@ -238,3 +236,84 @@ def match_paths_constrain_d(rx_paths, plot_pca=False):
             plt.show()
 
     return results
+
+from sklearn.neighbors import NearestNeighbors
+
+def eval_match(interpolated_paths, gt_paths):
+
+    # Batch just by path dimension
+
+    # Largest path length present
+    max_path_length = max(
+        len(path)
+        for path in gt_paths
+    )
+
+    # Index 0 is unused so indexing matches path length
+    A = [[] for _ in range(max_path_length + 1)]
+    GT = [[] for _ in range(max_path_length + 1)]
+
+    for path in interpolated_paths:
+        A[len(path)].append(path)
+
+    for path in gt_paths:
+        GT[len(path)].append(path)
+
+
+    reflection_point_error = []
+
+    for dim in range(2, max_path_length):
+
+        A_flat = []
+        npaths = len(A[dim])
+        for j in range(0, npaths):
+            flat_path = np.ravel(np.array(A[dim][j]))
+            A_flat.append(flat_path)
+        A_flat = np.array(A_flat)
+
+        GT_flat = []
+        npaths = len(GT[dim])
+        for j in range(0, npaths):
+            flat_path = np.ravel(np.array(GT[dim][j]))
+            GT_flat.append(flat_path)
+        GT_flat = np.array(GT_flat)
+
+        knn = NearestNeighbors(n_neighbors=1)
+        knn.fit(GT_flat)
+
+        # Query with the paths to be matched
+        distances, indices = knn.kneighbors(A_flat)
+
+        # Ensure each GT path is matched at most once
+        matched_gt = indices[:, 0]
+
+        unique_gt, counts = np.unique(matched_gt, return_counts=True)
+        duplicates = unique_gt[counts > 1]
+
+        if len(duplicates) > 0:
+            duplicate_info = []
+            for gt_idx in duplicates:
+                a_paths = np.where(matched_gt == gt_idx)[0]
+                duplicate_info.append(
+                    f"GT path {gt_idx} matched by estimated paths {a_paths.tolist()}"
+                )
+
+            raise RuntimeError(
+                "Nearest-neighbor matching is not one-to-one.\n"
+                + "\n".join(duplicate_info)
+            )
+
+
+        for i, (dist, idx) in enumerate(zip(distances[:, 0], indices[:, 0])):
+            # print(f"A path {i} -> GT path {idx} (distance={dist})")
+
+            A_path = A_flat[i].reshape(-1, 3)
+            GT_path = GT_flat[idx].reshape(-1, 3)
+
+            # Compare 3D distance between all reflection points
+            for j in range(0,dim):
+                reflection_point_error.append(np.linalg.norm(A_path[j,:]-GT_path[j,:]))
+
+    print(f" Average reflection point error is {np.mean(np.array(reflection_point_error))}m")
+
+    return reflection_point_error

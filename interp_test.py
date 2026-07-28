@@ -55,6 +55,7 @@ if __name__ == "__main__":
                     position=offsets[i])
         scene.add(rx)
 
+
     p_solver  = PathSolver()
 
     full_paths = p_solver(
@@ -77,38 +78,116 @@ if __name__ == "__main__":
     path_interpolations = compute_trilinear_interpolation(results, scene)
 
 
-    query_point = np.asarray([10, -35, 0], dtype=float)
-    x, y, z = query_point
-    v = np.array([
-        1.0,
-        x,
-        y,
-        z,
-        x * y,
-        x * z,
-        y * z,
-        x * y * z
+
+    ### Create a new scene and evaluate path interpolations at query points
+
+    scene = load_scene(sionna.rt.scene.simple_wedge)
+
+    # Configure antenna array for all transmitters
+    scene.tx_array = PlanarArray(num_rows=1,
+                                num_cols=1,
+                                vertical_spacing=0.5,
+                                horizontal_spacing=0.5,
+                                pattern="iso",
+                                polarization="V")
+
+    # Configure antenna array for all receivers
+    scene.rx_array = PlanarArray(num_rows=1,
+                                num_cols=1,
+                                vertical_spacing=0.5,
+                                horizontal_spacing=0.5,
+                                pattern="iso",
+                                polarization="V")
+
+    # Create transmitter
+    tx = Transmitter(name="tx",
+                    position=[30, -20, 0])
+
+    # Add transmitter instance to scene
+    scene.add(tx)
+
+    query_points_offsets = cube_vertices([10,-35, 0], 0.5)
+    query_points_offsets = np.vstack([
+        query_points_offsets,
+        [
+            [10.18, -34.31,  0.22],
+            [ 9.47, -35.62, -0.41],
+            [10.73, -35.18,  0.08],
+            [ 9.84, -34.56, -0.67],
+            [10.39, -35.81,  0.31],
+            [ 9.28, -34.92,  0.44],
+            [10.61, -35.37, -0.53],
+            [ 9.65, -35.14,  0.76],
+            [10.12, -34.48, -0.35],
+            [10.81, -35.55,  0.11],
+        ]
     ])
 
-    new_paths = []
-    for a in path_interpolations:
-        # Interpolate this path given this point.
-        flattened_path = v @ a
-        # Convert back into vertices
-        path = flattened_path.reshape(-1, 3)
-        new_paths.append(path)
+    for i in range(query_points_offsets.shape[0]):
+        rx = Receiver(name=f"q_rx{i}", # "Query" rx
+                    position=query_points_offsets[i])
+        scene.add(rx)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
-    add_objects(scene, ax)
-    add_rxs( np.array([query_point]), ax)
-    add_txs(tx.position, ax)
-    add_rays(new_paths, ax)
-    set_axes_equal(ax)
-    ax.legend()
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
-    ax.set_title (f" Interpolated paths for {query_point}")
-    plt.show()
+    p_solver  = PathSolver()
+    
+    full_paths = p_solver(
+        scene,
+        max_depth=5,
+        los=True,
+        specular_reflection=True,
+        diffuse_reflection=False,
+        refraction=False,
+        diffraction=True,
+        edge_diffraction=True,
+        max_num_paths_per_src=100000,
+        seed=41,
+    )
+
+    gt_rx_paths = simplify_paths(full_paths, scene)
+
+
+    error = []
+    
+    for i, query_point in enumerate(query_points_offsets):
+
+        x, y, z = query_point
+        v = np.array([
+            1.0,
+            x,
+            y,
+            z,
+            x * y,
+            x * z,
+            y * z,
+            x * y * z
+        ])
+
+        new_paths = []
+        for a in path_interpolations:
+            # Interpolate this path given this point.
+            flattened_path = v @ a
+            # Convert back into vertices
+            path = flattened_path.reshape(-1, 3)
+            new_paths.append(path)
+
+        gt_paths = gt_rx_paths[i]
+
+        print(f"Query point {query_point}")
+        error += eval_match(new_paths, gt_paths)
+
+    print(f" Total reflection point error = {np.mean(np.array(error))}m")
+        
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection="3d")
+    # add_objects(scene, ax)
+    # add_rxs( np.array([query_point]), ax)
+    # add_txs(tx.position, ax)
+    # add_rays(new_paths, ax)
+    # set_axes_equal(ax)
+    # ax.legend()
+    # ax.set_xlabel("X (m)")
+    # ax.set_ylabel("Y (m)")
+    # ax.set_zlabel("Z (m)")
+    # ax.set_title (f" Interpolated paths for {query_point}")
+    # plt.show()
     

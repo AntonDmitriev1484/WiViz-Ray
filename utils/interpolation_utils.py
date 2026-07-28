@@ -71,8 +71,7 @@ def compute_trilinear_interpolation(match_results, scene):
     # We should end up with path_interpolation being of
     # length = sum (N clusters) over each dim
 
-    print(path_interpolations)
-    
+
     return path_interpolations
 
 
